@@ -345,7 +345,7 @@ class DTLZ4(Problem):
         # --- 修改PF生成逻辑 ---
         # 不再使用 DTLZ2 的方式生成 PF 点
         # 改为生成 Pareto Set 上的点，然后评估它们以获得 PF 点 (体现 alpha 偏差)
-        n_points_approx = 200 # 生成大约 200 个真实前沿点用于可视化
+        n_points_approx = 200  # 生成大约 200 个真实前沿点用于可视化
         M = self.n_obj
 
         # 1. 在 M-1 维的决策变量空间 [0,1]^(M-1) 上生成均匀点
@@ -357,30 +357,29 @@ class DTLZ4(Problem):
         n_points = n_actual
 
         # 2. 构建完整的帕累托解集 (PS) 上的采样点
-        ps_samples = np.full((n_points, self.n_var), 0.5) # 后 k 个变量设为 0.5
-        ps_samples[:, :M - 1] = decision_vars_part1 # 前 M-1 个变量来自均匀采样
+        ps_samples = np.full((n_points, self.n_var), 0.5)  # 后 k 个变量设为 0.5
+        ps_samples[:, :M - 1] = decision_vars_part1  # 前 M-1 个变量来自均匀采样
 
         # 3. 评估这些 PS 采样点以获得 PF 点
         self.pareto_front = np.zeros((n_points, self.n_obj))
         for i in range(n_points):
-             # 直接调用 evaluate 方法，它内部会应用 alpha
-             # 注意：evaluate 返回的是 list，需要转 array
-             self.pareto_front[i, :] = np.array(self.evaluate(ps_samples[i, :]))
-             # DTLZ 的 evaluate 包含 (1+g) 因子，在真实前沿 g=0
-             # 所以需要除以 (1+g)，这里 g 对于 PS 点是 0
-             # g = np.sum((ps_samples[i, M - 1:] - 0.5) ** 2) # g=0
-             # factor_f = 1 + g # = 1
-             # self.pareto_front[i, :] = self.pareto_front[i, :] / factor_f # 不需要除以1
+            # 直接调用 evaluate 方法，它内部会应用 alpha
+            # 注意：evaluate 返回的是 list，需要转 array
+            self.pareto_front[i, :] = np.array(self.evaluate(ps_samples[i, :]))
+            # DTLZ 的 evaluate 包含 (1+g) 因子，在真实前沿 g=0
+            # 所以需要除以 (1+g)，这里 g 对于 PS 点是 0
+            # g = np.sum((ps_samples[i, M - 1:] - 0.5) ** 2) # g=0
+            # factor_f = 1 + g # = 1
+            # self.pareto_front[i, :] = self.pareto_front[i, :] / factor_f # 不需要除以1
 
         # Pareto解集 (PS): x0..x_{M-2} in [0,1], x_i=0.5 for i=M-1..n
         # 保存一个理论上的 PS 供参考 (虽然上面的 decision_vars_part1 只是采样)
         ps_theory_part1, n_ps_theory = self._generate_uniform_points_on_simplex(200, M - 1)
         self.pareto_set = np.full((n_ps_theory, self.n_var), 0.5)
-        self.pareto_set[:, :M-1] = ps_theory_part1
+        self.pareto_set[:, :M - 1] = ps_theory_part1
         # --- 修改结束 ---
 
-
-    def evaluate(self, x): # evaluate 方法保持不变
+    def evaluate(self, x):  # evaluate 方法保持不变
         x = np.asarray(x)
         M = self.n_obj
         # DTLZ4 使用 alpha 参数
@@ -389,13 +388,13 @@ class DTLZ4(Problem):
         g = np.sum((x[M - 1:] - 0.5) ** 2)
         f = np.zeros(M)
         factor = 1 + g
-        for i in range(M): # i=0..M-1
+        for i in range(M):  # i=0..M-1
             prod = 1.0
-            for j in range(M - 1 - i): # j=0..M-2-i
+            for j in range(M - 1 - i):  # j=0..M-2-i
                 # 使用 x_pow
                 prod *= np.cos(0.5 * np.pi * x_pow[j])
             if i > 0:
-                 # 使用 x_pow
+                # 使用 x_pow
                 prod *= np.sin(0.5 * np.pi * x_pow[M - 1 - i])
             f[i] = factor * prod
         return list(f)
@@ -600,11 +599,11 @@ class Particle:
 class CASMOPSO:
     """增强版多目标粒子群优化算法"""
 
-    def __init__(self, problem, pop_size, max_iterations,
-                 w_init, w_end, c1_init, c1_end,
-                 c2_init, c2_end,
-                 archive_size, mutation_rate, adaptive_grid_size,
-                 k_vmax, use_archive=True, max_consecutive_leadership=2):
+    def __init__(self, problem, pop_size=200, max_iterations=300,
+                 w_init=0.9, w_end=0.4, c1_init=2.5, c1_end=0.5,
+                 c2_init=0.5, c2_end=2.5,
+                 archive_size=100, mutation_rate=0.1, adaptive_grid_size=15,
+                 k_vmax=0.5, use_archive=True, max_consecutive_leadership=5):
         """
         初始化 CASMOPSO 算法
 
@@ -628,7 +627,6 @@ class CASMOPSO:
         self.mutation_rate = mutation_rate
         self.adaptive_grid_size = adaptive_grid_size
         self.max_consecutive_leadership = max_consecutive_leadership  # 新增：最大连续担任领导者次数
-
         # 速度限制相关
         self.k_vmax = k_vmax
         self.vmax = np.zeros(self.problem.n_var)
@@ -665,9 +663,15 @@ class CASMOPSO:
             # 当max_consecutive_leadership = 0时，不启用任期跟踪
             self.current_leaders = None
             self.leader_blacklist = None
+        self.stagnation_counter = 0  # 停滞计数器
+        self.stagnation_threshold = 10  # 停滞阈值
+        self.last_hv = 0.0  # 上一代的超体积值
+        self.min_mutation_rate = 0.02  # 最小变异率
+        self.distance_threshold = 1e-6  # 存档更新的距离阈值
+        self.restart_percentage = 0.3  # 重启时重新初始化的种群比例
 
     def optimize(self, tracking=True, verbose=True):
-        """执行优化过程"""
+        """执行优化过程 - 添加停滞检测与重启机制"""
         # 初始化粒子群
         self._initialize_particles()
 
@@ -690,11 +694,9 @@ class CASMOPSO:
         pbar = tqdm(range(self.max_iterations), desc=f"Optimizing {self.problem.name} with {self.__class__.__name__}",
                     disable=not verbose)
 
-        # 在每次迭代开始时重置当前代的领导者集合
         for iteration in pbar:
+            # 每代开始时重置当前代的领导者集合
             self.current_gen_leaders = []
-
-            # 每代开始时清除黑名单(重新给已到达最大任期的领导者机会) - 仅当启用任期限制时
             if self.max_consecutive_leadership > 0:
                 self.leader_blacklist = set()
 
@@ -706,7 +708,7 @@ class CASMOPSO:
 
             # 对每个粒子
             for i, particle in enumerate(self.particles):
-                # 选择领导者 - 传递当前迭代次数、粒子索引和粒子本身
+                # 选择领导者
                 if self.archive and self.use_archive:
                     leader = self._select_leader(particle, iteration, i)
                 else:
@@ -759,13 +761,17 @@ class CASMOPSO:
                 crowding_values = [record[2] for record in self.leader_history]
                 self.avg_leader_crowding = np.mean(crowding_values)
 
+            # 检测停滞并执行重启策略
+            if tracking and iteration > 0 and iteration % 5 == 0:
+                self._check_stagnation_and_restart(iteration)
+
             # 跟踪性能指标
-            if tracking and iteration % 10 == 0:
+            if tracking and iteration % 1 == 0:
                 self._track_performance(iteration)
 
             # 更新进度条描述信息
             if verbose and iteration % 10 == 0:
-                pbar.set_postfix({"ArchiveSize": len(self.archive)})
+                pbar.set_postfix({"ArchiveSize": len(self.archive), "Stagnation": self.stagnation_counter})
 
         # 确保记录最后一次迭代的性能
         if tracking:
@@ -779,6 +785,105 @@ class CASMOPSO:
 
         # 返回Pareto前沿
         return self._get_pareto_front()
+
+    def _check_stagnation_and_restart(self, iteration):
+        """检测停滞并执行重启策略"""
+        # 计算当前超体积指标
+        current_front = self._get_pareto_front()
+        if len(current_front) > 1:
+            try:
+                # 获取真实前沿用于参考点设置
+                true_front = self.problem.get_pareto_front()
+                if true_front is not None:
+                    ref_point = np.max(true_front, axis=0) * 1.1
+                else:
+                    ref_point = np.max(current_front, axis=0) * 1.1
+
+                current_hv = PerformanceIndicators.hypervolume(current_front, ref_point)
+
+                # 检测停滞 - 比较当前和上一代的超体积差异
+                if abs(current_hv - self.last_hv) < 1e-8:
+                    self.stagnation_counter += 1
+                else:
+                    self.stagnation_counter = 0
+
+                self.last_hv = current_hv
+
+                # 如果检测到停滞，执行重启策略
+                if self.stagnation_counter >= self.stagnation_threshold:
+                    self._perform_restart(iteration)
+                    self.stagnation_counter = 0
+
+            except Exception as e:
+                print(f"超体积计算错误: {e}")
+
+    def _perform_restart(self, iteration):
+        """执行重启策略"""
+        print(f"\n[迭代 {iteration}] 检测到停滞，执行部分重启...")
+
+        # 保留一部分存档中的最优解
+        archive_copy = self.archive.copy()
+
+        # 确定要重新初始化的粒子数量
+        restart_count = int(self.pop_size * self.restart_percentage)
+        restart_indices = np.random.choice(self.pop_size, restart_count, replace=False)
+
+        # 重新初始化选定的粒子
+        bounds = list(zip(self.problem.xl, self.problem.xu))
+        for idx in restart_indices:
+            # 完全重新初始化
+            self.particles[idx] = Particle(self.problem.n_var, bounds)
+
+            # 评估新粒子
+            evaluation_result = self.problem.evaluate(self.particles[idx].position)
+            if isinstance(evaluation_result, tuple) and len(evaluation_result) == 2:
+                objectives = evaluation_result[0]
+            else:
+                objectives = evaluation_result
+            self.particles[idx].fitness = np.array(objectives)
+            self.particles[idx].best_position = self.particles[idx].position.copy()
+            self.particles[idx].best_fitness = self.particles[idx].fitness.copy()
+
+        # 增加变异率以促进探索
+        self.mutation_rate = min(self.mutation_rate * 1.5, 0.3)
+
+        # 清除历史领导者记录以促进多样性
+        self.leader_history = self.leader_history[-30:] if len(self.leader_history) > 30 else self.leader_history
+
+        print(f"重启完成: {restart_count}个粒子被重新初始化，变异率提高到{self.mutation_rate:.4f}")
+
+    def _apply_mutation(self, particle, progress):
+        """变异操作 - 修改为确保最小变异率"""
+        # 根据迭代进度调整变异率，但确保最小值
+        current_rate = max(self.mutation_rate * (1 - progress * 0.7), self.min_mutation_rate)
+
+        # 周期性增加变异率以跳出局部最优
+        if random.random() < 0.05:  # 5%的概率
+            current_rate = max(current_rate, self.mutation_rate * 0.5)
+
+        # 对每个维度
+        for i in range(self.problem.n_var):
+            if np.random.random() < current_rate:
+                # 多项式变异
+                eta_m = 20  # 分布指数
+
+                delta1 = (particle.position[i] - self.problem.xl[i]) / (self.problem.xu[i] - self.problem.xl[i])
+                delta2 = (self.problem.xu[i] - particle.position[i]) / (self.problem.xu[i] - self.problem.xl[i])
+
+                rand = np.random.random()
+                mut_pow = 1.0 / (eta_m + 1.0)
+
+                if rand < 0.5:
+                    xy = 1.0 - delta1
+                    val = 2.0 * rand + (1.0 - 2.0 * rand) * (xy ** (eta_m + 1.0))
+                    delta_q = val ** mut_pow - 1.0
+                else:
+                    xy = 1.0 - delta2
+                    val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (xy ** (eta_m + 1.0))
+                    delta_q = 1.0 - val ** mut_pow
+
+                particle.position[i] += delta_q * (self.problem.xu[i] - self.problem.xl[i])
+                particle.position[i] = max(self.problem.xl[i], min(self.problem.xu[i], particle.position[i]))
 
     def _initialize_particles(self):
         """粒子初始化"""
@@ -811,7 +916,7 @@ class CASMOPSO:
             return hash(tuple(particle.position))
 
     def _select_leader(self, particle, iteration, particle_idx=None):
-        """选择领导者 - 动态持续更新的改进版，增加连续任期限制"""
+        """选择领导者 - 动态持续更新的改进版，增加多样性和随机性"""
         if not self.archive:
             return None
 
@@ -911,44 +1016,77 @@ class CASMOPSO:
 
                 return leader
 
-            # 重新计算平均拥挤度 - 使用滑动窗口，仅考虑最近的数据
-            window_size = 50  # 考虑最近50个领导者的拥挤度
+            # 重新计算平均拥挤度 - 使用缩小的滑动窗口
+            window_size = 30  # 考虑最近30个领导者的拥挤度
             recent_leaders = self.leader_history[-min(window_size, len(self.leader_history)):]
             crowding_values = [record[2] for record in recent_leaders]
             self.avg_leader_crowding = np.mean(crowding_values)
 
             # 根据最近的趋势动态拟合 - 使用最近的数据点
-            # 确定拟合窗口大小 - 随机从10-30之间选择以增加多样性
-            fit_window_size = random.randint(10, min(30, len(self.leader_history)))
+            # 确定拟合窗口大小 - 随机从5-15之间选择以增加多样性
+            fit_window_size = random.randint(5, min(15, len(self.leader_history)))
             recent_history = self.leader_history[-fit_window_size:]
 
             # 提取位置和适应度
             positions = np.array([record[0] for record in recent_history])
             fitnesses = np.array([record[1] for record in recent_history])
 
-            # 使用简单的线性回归预测下一个位置
-            predicted_position = np.zeros(self.problem.n_var)
-
+            # 使用更复杂的预测模型
             try:
+                # 初始化预测位置
+                predicted_position = np.zeros(self.problem.n_var)
+
+                # 检测停滞状态
+                stagnation_detected = hasattr(self, 'stagnation_counter') and self.stagnation_counter > 3
+
                 # 对每个决策变量维度拟合趋势
                 for dim in range(self.problem.n_var):
                     # 使用时间步作为x值
                     x = np.arange(len(positions))
                     y = positions[:, dim]
 
-                    # 简单线性回归: y = ax + b
-                    A = np.vstack([x, np.ones(len(x))]).T
-                    a, b = np.linalg.lstsq(A, y, rcond=None)[0]
+                    # 决定使用哪种预测模型
+                    if len(x) >= 5 and not stagnation_detected:
+                        try:
+                            # 尝试二阶多项式拟合: y = ax² + bx + c
+                            poly_order = min(2, len(x) - 1)  # 确保多项式阶数合适
+                            z = np.polyfit(x, y, poly_order)
+                            p = np.poly1d(z)
 
-                    # 预测下一步位置 - 随机化预测时间点以增加探索
-                    # 使用小的随机偏移来增加多样性
-                    next_x = len(positions) + random.uniform(0.5, 1.5)
-                    predicted_position[dim] = a * next_x + b
+                            # 预测下一步 - 随机化预测时间点以增加探索
+                            next_x = len(positions) + random.uniform(0.5, 1.5)
+                            predicted_position[dim] = p(next_x)
+                        except:
+                            # 如果多项式拟合失败，回退到线性拟合
+                            A = np.vstack([x, np.ones(len(x))]).T
+                            a, b = np.linalg.lstsq(A, y, rcond=None)[0]
+                            next_x = len(positions) + random.uniform(0.5, 1.5)
+                            predicted_position[dim] = a * next_x + b
+                    else:
+                        # 线性拟合加增强随机性
+                        A = np.vstack([x, np.ones(len(x))]).T
+                        a, b = np.linalg.lstsq(A, y, rcond=None)[0]
+
+                        # 停滞时增加随机扰动范围
+                        random_scale = 1.0
+                        if stagnation_detected:
+                            random_scale = 1.0 + min(0.5, self.stagnation_counter * 0.1)
+
+                        # 随机预测点和额外扰动
+                        next_x = len(positions) + random.uniform(0.5, 2.0) * random_scale
+                        predicted_position[dim] = a * next_x + b
+
+                        # 检测到停滞时添加额外随机扰动
+                        if stagnation_detected:
+                            range_width = self.problem.xu[dim] - self.problem.xl[dim]
+                            # 随机扰动的大小与停滞程度成正比
+                            perturbation = range_width * 0.05 * self.stagnation_counter / 10.0 * random.uniform(-1, 1)
+                            predicted_position[dim] += perturbation
 
                 # 确保预测位置在合法范围内
                 predicted_position = np.clip(predicted_position, self.problem.xl, self.problem.xu)
 
-                # 评估预测位置的适应度和拥挤度
+                # 评估预测位置的适应度
                 predicted_fitness = np.array(self.problem.evaluate(predicted_position))
 
                 # 创建临时粒子
@@ -967,7 +1105,7 @@ class CASMOPSO:
                         # 如果在黑名单中，添加一些随机扰动以创建新的不同领导者
                         for dim in range(self.problem.n_var):
                             # 添加随机扰动，但保持预测趋势的大致方向
-                            perturbation = (self.problem.xu[dim] - self.problem.xl[dim]) * 0.05 * random.uniform(-1, 1)
+                            perturbation = (self.problem.xu[dim] - self.problem.xl[dim]) * 0.08 * random.uniform(-1, 1)
                             temp_particle.position[dim] += perturbation
                             temp_particle.best_position[dim] += perturbation
 
@@ -998,28 +1136,35 @@ class CASMOPSO:
 
                 # 对于每个周期，追求不同的拥挤度目标
                 # 随机化目标拥挤度 - 在平均值周围波动，促进前沿均衡探索
-                target_crowding = self.avg_leader_crowding * random.uniform(0.8, 1.2)
+                target_crowding = self.avg_leader_crowding * random.uniform(0.7, 1.3)  # 增加波动范围
+
+                # 检测到停滞时偶尔进行极端探索
+                if hasattr(self, 'stagnation_counter') and self.stagnation_counter > 5 and random.random() < 0.3:
+                    # 以30%概率选择极端目标 - 非常低或非常高的拥挤度
+                    target_crowding = self.avg_leader_crowding * (2.0 if random.random() < 0.5 else 0.5)
 
                 # 搜索适合的预测位置
                 search_step = 1
-                max_search_steps = 10  # 最大搜索步数
+                max_search_steps = 8  # 减少最大搜索步数以避免过度调整
 
+                # 只有在差异较大且未达到最大搜索步数时才调整
+                # 注意：增加接受阈值，减少过度微调
                 while abs(
-                        predicted_crowding - target_crowding) > 0.2 * target_crowding and search_step < max_search_steps:
+                        predicted_crowding - target_crowding) > 0.3 * target_crowding and search_step < max_search_steps:
                     # 确定搜索方向 - 如果拥挤度太高则前进，太低则后退
                     direction = 1 if predicted_crowding > target_crowding else -1
 
                     # 沿趋势线移动
                     for dim in range(self.problem.n_var):
-                        x = np.arange(len(positions))
-                        y = positions[:, dim]
+                        # 每个维度使用不同的随机因子，增加多样性
+                        random_factor = random.uniform(0.8, 1.2)
 
-                        A = np.vstack([x, np.ones(len(x))]).T
-                        a, b = np.linalg.lstsq(A, y, rcond=None)[0]
+                        # 扰动大小随搜索步骤增加
+                        step_size = search_step * 0.1 * random_factor
 
-                        # 调整预测位置
-                        next_x = len(positions) + direction * search_step * random.uniform(0.8, 1.2)
-                        predicted_position[dim] = a * next_x + b
+                        # 沿拟合曲线方向调整，但加入随机扰动
+                        delta = (self.problem.xu[dim] - self.problem.xl[dim]) * step_size * direction
+                        predicted_position[dim] += delta
 
                     # 确保在合法范围内
                     predicted_position = np.clip(predicted_position, self.problem.xl, self.problem.xu)
@@ -1047,7 +1192,7 @@ class CASMOPSO:
                         if temp_particle_id in self.leader_blacklist and search_step < max_search_steps:
                             # 添加额外的随机扰动以避开黑名单
                             for dim in range(self.problem.n_var):
-                                perturbation = (self.problem.xu[dim] - self.problem.xl[dim]) * 0.02 * random.uniform(-1,
+                                perturbation = (self.problem.xu[dim] - self.problem.xl[dim]) * 0.03 * random.uniform(-1,
                                                                                                                      1)
                                 temp_particle.position[dim] += perturbation
                                 temp_particle.best_position[dim] += perturbation
@@ -1242,37 +1387,8 @@ class CASMOPSO:
         max_idx_in_candidates = np.argmax(crowding_distances)
         return candidates[max_idx_in_candidates]
 
-    def _apply_mutation(self, particle, progress):
-        """变异操作"""
-        # 根据迭代进度调整变异率
-        current_rate = self.mutation_rate * (1 - progress * 0.7)
-
-        # 对每个维度
-        for i in range(self.problem.n_var):
-            if np.random.random() < current_rate:
-                # 多项式变异
-                eta_m = 20  # 分布指数
-
-                delta1 = (particle.position[i] - self.problem.xl[i]) / (self.problem.xu[i] - self.problem.xl[i])
-                delta2 = (self.problem.xu[i] - particle.position[i]) / (self.problem.xu[i] - self.problem.xl[i])
-
-                rand = np.random.random()
-                mut_pow = 1.0 / (eta_m + 1.0)
-
-                if rand < 0.5:
-                    xy = 1.0 - delta1
-                    val = 2.0 * rand + (1.0 - 2.0 * rand) * (xy ** (eta_m + 1.0))
-                    delta_q = val ** mut_pow - 1.0
-                else:
-                    xy = 1.0 - delta2
-                    val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (xy ** (eta_m + 1.0))
-                    delta_q = 1.0 - val ** mut_pow
-
-                particle.position[i] += delta_q * (self.problem.xu[i] - self.problem.xl[i])
-                particle.position[i] = max(self.problem.xl[i], min(self.problem.xu[i], particle.position[i]))
-
     def _update_archive(self):
-        """更新外部存档"""
+        """更新外部存档 - 使用距离阈值替代严格相等检查"""
         # 将当前粒子的个体最优位置添加到存档中
         for particle in self.particles:
             is_dominated = False
@@ -1287,17 +1403,24 @@ class CASMOPSO:
                 elif self._dominates(particle.best_fitness, solution.best_fitness):
                     self.archive.remove(solution)
 
-            # 如果不被支配，添加到存档
-            if not is_dominated and not any(
-                    np.array_equal(particle.best_position, a.best_position) for a in self.archive):
-                # 深拷贝粒子
-                archive_particle = Particle(particle.dimensions, particle.bounds)
-                archive_particle.position = particle.best_position.copy()
-                archive_particle.best_position = particle.best_position.copy()
-                archive_particle.fitness = particle.best_fitness.copy()
-                archive_particle.best_fitness = particle.best_fitness.copy()
+            # 如果不被支配，检查与存档中解的距离
+            if not is_dominated:
+                # 计算最小距离，使用欧几里得距离
+                min_distance = float('inf')
+                for solution in self.archive:
+                    dist = np.linalg.norm(particle.best_position - solution.best_position)
+                    min_distance = min(min_distance, dist)
 
-                self.archive.append(archive_particle)
+                # 只有当距离大于阈值时才添加到存档
+                if min_distance > self.distance_threshold or len(self.archive) == 0:
+                    # 深拷贝粒子
+                    archive_particle = Particle(particle.dimensions, particle.bounds)
+                    archive_particle.position = particle.best_position.copy()
+                    archive_particle.best_position = particle.best_position.copy()
+                    archive_particle.fitness = particle.best_fitness.copy()
+                    archive_particle.best_fitness = particle.best_fitness.copy()
+
+                    self.archive.append(archive_particle)
 
         # 如果存档超过大小限制，使用拥挤度排序保留多样性
         if len(self.archive) > self.archive_size:
@@ -1579,7 +1702,7 @@ class MOPSO:
                 self._update_archive()
 
             # 跟踪性能指标
-            if tracking and iteration % 10 == 0:
+            if tracking and iteration % 1 == 0:
                 # 确保 _track_performance 使用的是存档或种群的 pbest
                 self._track_performance(iteration)
 
@@ -1828,22 +1951,11 @@ class MOPSO:
         # HV
         # 计算HV指标
         if len(front) > 0:
-            # 设置参考点 - 改进以确保参考点适当
+            # 设置参考点
             if true_front is not None:
-                # 使用真实前沿的最大值加上一点余量
                 ref_point = np.max(true_front, axis=0) * 1.1
             else:
-                # 使用当前前沿的最大值加上一点余量
                 ref_point = np.max(front, axis=0) * 1.1
-
-            # 修复：确保参考点值都是正数且大于前沿最大值
-            max_front = np.max(front, axis=0)
-            for i in range(len(ref_point)):
-                if ref_point[i] <= max_front[i]:
-                    ref_point[i] = max_front[i] * 1.1
-                # 确保参考点为正值
-                if ref_point[i] <= 0:
-                    ref_point[i] = 1.0
 
             try:
                 hv = PerformanceIndicators.hypervolume(front, ref_point)
@@ -1936,7 +2048,7 @@ class MOEAD:
                 self._update_neighbors(i, child, child_obj)
 
             # 跟踪性能指标
-            if tracking and gen % 10 == 0:
+            if tracking and gen % 1 == 0:
                 self._track_performance(gen)
 
         # 最终评估
@@ -2131,19 +2243,7 @@ class MOEAD:
         return child
 
     def _update_neighbors(self, idx, child_x, child_obj):
-        """更新邻居解 - 增加DTLZ6特殊处理"""
-        # DTLZ6特殊处理
-        if hasattr(self.problem, 'name') and self.problem.name == "DTLZ6":
-            # 计算子代与已有解的距离
-            min_dist = float('inf')
-            for p in self.population:
-                dist = np.linalg.norm(child_obj - p['objectives'])
-                min_dist = min(min_dist, dist)
-
-            # 如果太接近现有解，以0.3概率拒绝更新
-            if min_dist < 0.1 and np.random.random() < 0.3:
-                return
-
+        """更新邻居解 - 标准MOEA/D实现"""
         # 原始更新代码
         count = 0
         perm = np.random.permutation(self.neighbors[idx])
@@ -2248,24 +2348,12 @@ class MOEAD:
             self.tracking['metrics']['rpsp'].append(float('nan'))
 
         # 计算HV指标
-        # 计算HV指标
         if len(front) > 0:
-            # 设置参考点 - 改进以确保参考点适当
+            # 设置参考点
             if true_front is not None:
-                # 使用真实前沿的最大值加上一点余量
                 ref_point = np.max(true_front, axis=0) * 1.1
             else:
-                # 使用当前前沿的最大值加上一点余量
                 ref_point = np.max(front, axis=0) * 1.1
-
-            # 修复：确保参考点值都是正数且大于前沿最大值
-            max_front = np.max(front, axis=0)
-            for i in range(len(ref_point)):
-                if ref_point[i] <= max_front[i]:
-                    ref_point[i] = max_front[i] * 1.1
-                # 确保参考点为正值
-                if ref_point[i] <= 0:
-                    ref_point[i] = 1.0
 
             try:
                 hv = PerformanceIndicators.hypervolume(front, ref_point)
@@ -2360,7 +2448,7 @@ class NSGAII:
             self.population = self._environmental_selection(fronts)
 
             # 跟踪性能指标
-            if tracking and generation % 10 == 0:
+            if tracking and generation % 1 == 0:
                 self._track_performance(generation)
 
         # 最终评估
@@ -2667,24 +2755,12 @@ class NSGAII:
             self.tracking['metrics']['rpsp'].append(float('nan'))
 
         # 计算HV指标
-        # 计算HV指标
         if len(front) > 0:
-            # 设置参考点 - 改进以确保参考点适当
+            # 设置参考点
             if true_front is not None:
-                # 使用真实前沿的最大值加上一点余量
                 ref_point = np.max(true_front, axis=0) * 1.1
             else:
-                # 使用当前前沿的最大值加上一点余量
                 ref_point = np.max(front, axis=0) * 1.1
-
-            # 修复：确保参考点值都是正数且大于前沿最大值
-            max_front = np.max(front, axis=0)
-            for i in range(len(ref_point)):
-                if ref_point[i] <= max_front[i]:
-                    ref_point[i] = max_front[i] * 1.1
-                # 确保参考点为正值
-                if ref_point[i] <= 0:
-                    ref_point[i] = 1.0
 
             try:
                 hv = PerformanceIndicators.hypervolume(front, ref_point)
@@ -2764,7 +2840,7 @@ class SPEA2:
             self._update_archive()
 
             # 跟踪性能指标
-            if tracking and gen % 10 == 0:
+            if tracking and gen % 1 == 0:
                 self._track_performance(gen)
 
         # 最终评估
@@ -3099,24 +3175,12 @@ class SPEA2:
             self.tracking['metrics']['rpsp'].append(float('nan'))
 
         # 计算HV指标
-        # 计算HV指标
         if len(front) > 0:
-            # 设置参考点 - 改进以确保参考点适当
+            # 设置参考点
             if true_front is not None:
-                # 使用真实前沿的最大值加上一点余量
                 ref_point = np.max(true_front, axis=0) * 1.1
             else:
-                # 使用当前前沿的最大值加上一点余量
                 ref_point = np.max(front, axis=0) * 1.1
-
-            # 修复：确保参考点值都是正数且大于前沿最大值
-            max_front = np.max(front, axis=0)
-            for i in range(len(ref_point)):
-                if ref_point[i] <= max_front[i]:
-                    ref_point[i] = max_front[i] * 1.1
-                # 确保参考点为正值
-                if ref_point[i] <= 0:
-                    ref_point[i] = 1.0
 
             try:
                 hv = PerformanceIndicators.hypervolume(front, ref_point)
@@ -3133,7 +3197,7 @@ class GDE3:
 
     def __init__(self, problem, pop_size=100, max_generations=100,
                  F=0.5,  # 缩放因子 (Scaling Factor)
-                 CR=0.9): # 交叉概率 (Crossover Rate)
+                 CR=0.9):  # 交叉概率 (Crossover Rate)
         """
         初始化 GDE3 算法
         problem: 优化问题实例
@@ -3149,7 +3213,7 @@ class GDE3:
         self.CR = CR
 
         # 种群
-        self.population = [] # 存储个体字典: {'x': array, 'objectives': array, 'rank': int, 'crowding_distance': float}
+        self.population = []  # 存储个体字典: {'x': array, 'objectives': array, 'rank': int, 'crowding_distance': float}
 
         # 性能指标跟踪
         self.tracking = {
@@ -3161,7 +3225,7 @@ class GDE3:
         """执行优化过程"""
         # 1. 初始化种群 P
         self.population = self._initialize_population()
-        self._evaluate_population(self.population) # 计算初始种群的目标值
+        self._evaluate_population(self.population)  # 计算初始种群的目标值
 
         # 初始排序和拥挤度计算 (可选，但有助于跟踪)
         fronts = self._fast_non_dominated_sort(self.population)
@@ -3170,7 +3234,8 @@ class GDE3:
                 self._crowding_distance_assignment(front)
 
         # 迭代优化
-        pbar = tqdm(range(self.max_generations), desc=f"Optimizing {self.problem.name} with {self.__class__.__name__}", disable=not verbose)
+        pbar = tqdm(range(self.max_generations), desc=f"Optimizing {self.problem.name} with {self.__class__.__name__}",
+                    disable=not verbose)
         for generation in pbar:
             # 临时存储下一代候选解
             next_pop_candidates = []
@@ -3195,7 +3260,8 @@ class GDE3:
 
                 # 5. 评估试验向量 u_i
                 trial_vector_obj = np.array(self.problem.evaluate(trial_vector_x))
-                trial_vector = {'x': trial_vector_x, 'objectives': trial_vector_obj, 'rank': None, 'crowding_distance': None}
+                trial_vector = {'x': trial_vector_x, 'objectives': trial_vector_obj, 'rank': None,
+                                'crowding_distance': None}
 
                 # 6. 选择 (GDE3 核心)
                 target_obj = target_vector['objectives']
@@ -3205,7 +3271,7 @@ class GDE3:
                     # 试验向量支配目标向量 -> 保留试验向量
                     next_pop_candidates.append(trial_vector)
                 elif not self._dominates(target_obj, trial_obj):
-                     # 目标向量不支配试验向量 (包括 trial_obj == target_obj 或互不支配) -> 保留试验向量
+                    # 目标向量不支配试验向量 (包括 trial_obj == target_obj 或互不支配) -> 保留试验向量
                     next_pop_candidates.append(trial_vector)
                 # else: (目标向量支配试验向量) -> 不保留试验向量，目标向量隐式地保留在下一轮合并中
 
@@ -3216,7 +3282,7 @@ class GDE3:
             #    使用非支配排序和拥挤度
             fronts = self._fast_non_dominated_sort(combined_population)
             for front in fronts:
-                 if front:
+                if front:
                     self._crowding_distance_assignment(front)
 
             self.population = []
@@ -3224,7 +3290,7 @@ class GDE3:
             while len(self.population) + len(fronts[front_idx]) <= self.pop_size:
                 self.population.extend(fronts[front_idx])
                 front_idx += 1
-                if front_idx >= len(fronts): # 防止索引越界
+                if front_idx >= len(fronts):  # 防止索引越界
                     break
 
             # 如果空间不足，根据拥挤度填充剩余位置
@@ -3235,13 +3301,12 @@ class GDE3:
                 self.population.extend(sorted_last_front[:remaining_needed])
 
             # 跟踪性能指标 (每隔一定代数或最后一次记录)
-            if tracking and (generation % 10 == 0 or generation == self.max_generations - 1):
+            if tracking and (generation % 1 == 0 or generation == self.max_generations - 1):
                 self._track_performance(generation)
 
             # 更新进度条
             if verbose and generation % 10 == 0:
-                 pbar.set_postfix({"PopSize": len(self.population)})
-
+                pbar.set_postfix({"PopSize": len(self.population)})
 
         pbar.close()
         if verbose:
@@ -3255,10 +3320,11 @@ class GDE3:
         population = []
         for _ in range(self.pop_size):
             individual = {}
-            individual['x'] = np.array([np.random.uniform(low, up) for low, up in zip(self.problem.xl, self.problem.xu)])
+            individual['x'] = np.array(
+                [np.random.uniform(low, up) for low, up in zip(self.problem.xl, self.problem.xu)])
             individual['objectives'] = None
             individual['rank'] = None
-            individual['crowding_distance'] = float('nan') # 初始化为 NaN
+            individual['crowding_distance'] = float('nan')  # 初始化为 NaN
             population.append(individual)
         return population
 
@@ -3287,18 +3353,18 @@ class GDE3:
             p['domination_count'] = 0
             p['dominated_solutions'] = []
             for q in population:
-                 # 确保比较目标值不为None
-                 if p['objectives'] is None or q['objectives'] is None: continue
-                 if self._dominates(p['objectives'], q['objectives']):
+                # 确保比较目标值不为None
+                if p['objectives'] is None or q['objectives'] is None: continue
+                if self._dominates(p['objectives'], q['objectives']):
                     p['dominated_solutions'].append(q)
-                 elif self._dominates(q['objectives'], p['objectives']):
+                elif self._dominates(q['objectives'], p['objectives']):
                     p['domination_count'] += 1
             if p['domination_count'] == 0:
                 p['rank'] = 0
                 fronts[0].append(p)
 
         i = 0
-        while i < len(fronts) and fronts[i]: # 添加 fronts[i] 非空检查
+        while i < len(fronts) and fronts[i]:  # 添加 fronts[i] 非空检查
             next_front = []
             for p in fronts[i]:
                 for q in p['dominated_solutions']:
@@ -3333,7 +3399,7 @@ class GDE3:
             if n > 2:
                 f_max = fitnesses[sorted_indices[-1], m]
                 f_min = fitnesses[sorted_indices[0], m]
-                norm = max(f_max - f_min, 1e-10) # 避免除零
+                norm = max(f_max - f_min, 1e-10)  # 避免除零
 
                 for i in range(1, n - 1):
                     prev_idx = sorted_indices[i - 1]
@@ -3341,15 +3407,15 @@ class GDE3:
                     current_idx = sorted_indices[i]
                     # 避免对已经是inf的点累加
                     if np.isfinite(front[current_idx]['crowding_distance']):
-                         delta = (fitnesses[next_idx, m] - fitnesses[prev_idx, m]) / norm
-                         front[current_idx]['crowding_distance'] += delta
+                        delta = (fitnesses[next_idx, m] - fitnesses[prev_idx, m]) / norm
+                        front[current_idx]['crowding_distance'] += delta
 
     # --- 获取结果和性能跟踪 ---
     def _get_pareto_front(self):
         """获取算法生成的最终Pareto前沿 (Rank 0)"""
         final_fronts = self._fast_non_dominated_sort(self.population)
-        if not final_fronts: # 如果没有非支配解
-             return np.array([])
+        if not final_fronts:  # 如果没有非支配解
+            return np.array([])
         # 返回第一个前沿 (Rank 0) 的目标值
         return np.array([ind['objectives'] for ind in final_fronts[0]])
 
@@ -3364,12 +3430,12 @@ class GDE3:
     def _track_performance(self, iteration):
         """跟踪性能指标 - 复用基类或其他算法的实现"""
         # 获取当前Pareto前沿和解集 (基于当前种群的Rank 0)
-        current_front = self._get_pareto_front() # 获取当前非支配前沿
-        current_set = self._get_pareto_set()   # 获取当前非支配解集
+        current_front = self._get_pareto_front()  # 获取当前非支配前沿
+        current_set = self._get_pareto_set()  # 获取当前非支配解集
 
         # 保存迭代次数和前沿
         self.tracking['iterations'].append(iteration)
-        self.tracking['fronts'].append(current_front) # 保存当前前沿
+        self.tracking['fronts'].append(current_front)  # 保存当前前沿
 
         # 获取真实前沿和解集
         true_front = self.problem.get_pareto_front()
@@ -3405,24 +3471,12 @@ class GDE3:
             self.tracking['metrics']['rpsp'].append(float('nan'))
 
         # HV (Hypervolume)
-        # 计算HV指标
         if len(current_front) > 0:
-            # 设置参考点 - 改进以确保参考点适当
+            # 设置参考点
             if true_front is not None:
-                # 使用真实前沿的最大值加上一点余量
                 ref_point = np.max(true_front, axis=0) * 1.1
             else:
-                # 使用当前前沿的最大值加上一点余量
                 ref_point = np.max(current_front, axis=0) * 1.1
-
-            # 修复：确保参考点值都是正数且大于前沿最大值
-            max_front = np.max(current_front, axis=0)
-            for i in range(len(ref_point)):
-                if ref_point[i] <= max_front[i]:
-                    ref_point[i] = max_front[i] * 1.1
-                # 确保参考点为正值
-                if ref_point[i] <= 0:
-                    ref_point[i] = 1.0
 
             try:
                 hv = PerformanceIndicators.hypervolume(current_front, ref_point)
@@ -3432,7 +3486,6 @@ class GDE3:
                 self.tracking['metrics']['hv'].append(float('nan'))
         else:
             self.tracking['metrics']['hv'].append(float('nan'))
-
 
 
 # ====================== 性能评估指标 ======================
@@ -3828,7 +3881,7 @@ class DataExporter:
     def export_generational_performance_all_runs(self, problem_name, algorithm_name, all_tracking_data,
                                                  algorithm_obj=None):
         """
-        导出所有运行的完整代际性能数据 - 确保每代都有数据
+        (修改版) 导出所有运行的实际记录的代际性能数据
 
         problem_name: 问题名称
         algorithm_name: 算法名称
@@ -3840,17 +3893,25 @@ class DataExporter:
         if not os.path.exists(problem_dir):
             os.makedirs(problem_dir)
 
-        # 获取算法每步的运算次数倍率
+        # 获取算法每步的运算次数倍率 (通常是种群大小)
         comp_per_iter = 1
         if hasattr(algorithm_obj, 'pop_size'):
+            comp_per_iter = algorithm_obj.pop_size
+        # 对于遗传算法类，通常也是pop_size或类似
+        elif hasattr(algorithm_obj, 'pop_size') and algorithm_name in ["NSGAII", "GDE3"]:
+            comp_per_iter = algorithm_obj.pop_size
+        elif hasattr(algorithm_obj, 'pop_size') and algorithm_name == "MOEAD":
+            # MOEA/D的计算复杂度略有不同，但通常也与pop_size相关
             comp_per_iter = algorithm_obj.pop_size
 
         # 为每次运行创建单独的性能记录文件
         for run_id, tracking_data in enumerate(all_tracking_data):
-            file_path = os.path.join(problem_dir, f"{algorithm_name}_run_{run_id + 1}_generational.txt")
+            file_path = os.path.join(problem_dir,
+                                     f"{algorithm_name}_run_{run_id + 1}_generational.txt")  # 文件名加后缀
 
             with open(file_path, 'w') as f:
-                f.write(f"# 问题: {problem_name}, 算法: {algorithm_name}, 运行: {run_id + 1} 的代际性能数据\n")
+                f.write(f"# 问题: {problem_name}, 算法: {algorithm_name}, 运行: {run_id + 1} 的实际记录性能数据\n")
+                f.write("# 注意: 本文件只包含实际跟踪记录的迭代数据点\n")
                 f.write("# 格式: 迭代次数, 运算次数, IGDF, IGDX, RPSP, HV, SP\n\n")
 
                 # 检查是否有迭代数据
@@ -3858,92 +3919,40 @@ class DataExporter:
                     f.write("# 无迭代数据\n")
                     continue
 
-                # 确定最大迭代次数
-                max_iterations = 0
-                if algorithm_obj and hasattr(algorithm_obj, 'max_iterations'):
-                    max_iterations = algorithm_obj.max_iterations
-                elif algorithm_obj and hasattr(algorithm_obj, 'max_generations'):
-                    max_iterations = algorithm_obj.max_generations
-                else:
-                    # 使用跟踪数据中的最大迭代次数
-                    if tracking_data['iterations']:
-                        max_iterations = max(tracking_data['iterations'])
-
                 # 获取原始跟踪数据
                 orig_iterations = tracking_data['iterations']
                 metrics = tracking_data['metrics']
 
-                # 生成完整的迭代序列 (0, 1, 2, ..., max_iterations)
-                complete_iterations = list(range(max_iterations + 1))
-
-                # 为每个指标创建完整的数据集
-                complete_metrics = {}
-                for metric in ['igdf', 'igdx', 'rpsp', 'hv', 'sp']:
-                    if metric in metrics and metrics[metric]:
-                        # 使用线性插值生成完整的指标序列
-                        from scipy.interpolate import interp1d
-
-                        # 获取原始数据
-                        x = np.array(orig_iterations)
-                        y = np.array(metrics[metric])
-
-                        # 创建插值函数 - 如果原始数据至少有2个点
-                        if len(x) >= 2:
-                            # 处理重复的x值，可能导致插值错误
-                            if len(x) != len(np.unique(x)):
-                                # 如有重复，取平均值
-                                unique_x, indices = np.unique(x, return_index=True)
-                                unique_y = np.array([np.mean(y[x == val]) for val in unique_x])
-                                x = unique_x
-                                y = unique_y
-
-                            # 创建插值函数 - 为避免终点外插，限制范围
-                            interp_func = interp1d(x, y, kind='linear',
-                                                   bounds_error=False,
-                                                   fill_value=(y[0], y[-1]))  # 超出范围使用端点值
-
-                            # 应用插值函数，但仅在原始数据范围内
-                            min_x, max_x = min(x), max(x)
-                            complete_metrics[metric] = []
-
-                            for iter_num in complete_iterations:
-                                if iter_num < min_x:
-                                    # 小于最小记录点，使用第一个记录值
-                                    complete_metrics[metric].append(y[0])
-                                elif iter_num > max_x:
-                                    # 大于最大记录点，使用最后一个记录值
-                                    complete_metrics[metric].append(y[-1])
-                                elif iter_num in x:
-                                    # 如果是原始数据点，直接使用原值
-                                    idx = np.where(x == iter_num)[0][0]
-                                    complete_metrics[metric].append(y[idx])
-                                else:
-                                    # 使用插值
-                                    complete_metrics[metric].append(float(interp_func(iter_num)))
-                        else:
-                            # 如果只有一个数据点，所有迭代使用相同值
-                            complete_metrics[metric] = [y[0]] * len(complete_iterations)
-                    else:
-                        # 没有此指标数据
-                        complete_metrics[metric] = [float('nan')] * len(complete_iterations)
-
-                # 导出完整的迭代数据
-                for i, iteration in enumerate(complete_iterations):
+                # --- 修改核心逻辑 ---
+                # 直接遍历原始记录的迭代次数
+                for i, iteration in enumerate(orig_iterations):
                     # 计算运算次数
+                    # 注意：这里的 'iteration' 是实际记录的迭代次数，
+                    #      如果算法中跳过了某些迭代的记录，运算次数的计算可能需要更精确的逻辑
+                    #      但这里我们仍基于记录的迭代次数来估算
                     computation_count = iteration * comp_per_iter
 
                     # 构造数据行
                     line = f"{iteration}, {computation_count}"
 
+                    # 获取对应迭代的指标值
                     for metric in ['igdf', 'igdx', 'rpsp', 'hv', 'sp']:
-                        if metric in complete_metrics:
-                            line += f", {complete_metrics[metric][i]}"
+                        if metric in metrics and i < len(metrics[metric]):
+                            # 直接使用原始记录的值
+                            value = metrics[metric][i]
+                            # 处理 NaN 值，可以选择输出 'NaN' 或其他标记
+                            if np.isnan(value):
+                                line += ", NaN"
+                            else:
+                                line += f", {value}"
                         else:
+                            # 如果某个指标在这次迭代没有记录（理论上不应发生，除非跟踪逻辑有问题）
                             line += ", NaN"
 
                     f.write(line + "\n")
+                # --- 修改结束 ---
 
-                # 添加解集信息
+                # 添加解集信息 (保持不变)
                 f.write("\n# 最终解集大小信息\n")
                 if 'fronts' in tracking_data and tracking_data['fronts']:
                     last_front = tracking_data['fronts'][-1]
@@ -5475,9 +5484,9 @@ def main():
             "c2_end": 2.5,
             "use_archive": True,
             "archive_size": 100,
-            "mutation_rate": 0,
+            "mutation_rate": 0.1,
             "adaptive_grid_size": 15,
-            "k_vmax": 0.1
+            "k_vmax": 0.4
         },
         "GDE3": {
             "pop_size": 100,
