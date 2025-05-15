@@ -8,7 +8,6 @@ import os
 from scipy.spatial.distance import cdist, pdist
 import logging
 
-
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -213,6 +212,10 @@ def save_algorithm_results(algorithm, algorithm_name, pareto_dir='pareto_compari
         if len(pareto_front) > 0:
             save_pareto_front(pareto_front, algorithm_name)
             save_pareto_solutions(pareto_solutions, algorithm_name)
+
+            # 新增：保存详细结果
+            save_pareto_detailed_results(algorithm_name, pareto_solutions, algorithm.problem)
+
             print(f"{algorithm_name}帕累托解集已成功保存")
         else:
             print(f"{algorithm_name}没有找到有效的帕累托解集")
@@ -1953,6 +1956,7 @@ class SPEA2:
                 archive.pop(min_i)
             else:
                 archive.pop(min_j)
+
     def _remove_most_crowded(self, archive):
         """移除最拥挤的个体"""
         # 计算所有个体间的距离
@@ -2953,6 +2957,173 @@ def run_comparison(problem, algorithms, algorithm_params, n_runs=5,
     return results
 
 
+def update_pipe_diameters(irrigation_system, position):
+    """更新管网直径配置"""
+    # 确定各部分索引范围
+    main_pipe_dims = len(irrigation_system.main_pipe) - 1  # 干管段数（不含第0段）
+
+    # 解码个体
+    main_indices = position[:main_pipe_dims]
+    submain_first_indices = position[main_pipe_dims:main_pipe_dims + irrigation_system.node_count]
+    submain_second_indices = position[main_pipe_dims + irrigation_system.node_count:]
+
+    # 获取管道规格 - 从irrigation_system对象获取pipe_specs属性
+    pipe_specs = irrigation_system.pipe_specs if hasattr(irrigation_system, 'pipe_specs') else None
+
+    if pipe_specs is None:
+        # 如果irrigation_system没有pipe_specs属性，从其所属的problem对象获取
+        if hasattr(irrigation_system, '_problem') and hasattr(irrigation_system._problem, 'pipe_specs'):
+            pipe_specs = irrigation_system._problem.pipe_specs
+        else:
+            # 打印错误并返回
+            print("错误: 无法找到管道规格信息(pipe_specs)")
+            return
+
+    # 更新干管管径（确保管径递减）
+    prev_diameter = irrigation_system.main_pipe[0]["diameter"]
+    for i, index in enumerate(main_indices, start=1):
+        # 确保管径不大于前一段
+        available_diameters = [d for d in pipe_specs["main"]["diameters"] if d <= prev_diameter]
+
+        if not available_diameters:
+            # 如果没有可用管径，中断更新
+            return
+
+        # 规范化索引
+        normalized_index = min(int(index), len(available_diameters) - 1)
+        diameter = available_diameters[normalized_index]
+
+        # 更新管径
+        irrigation_system.main_pipe[i]["diameter"] = diameter
+        prev_diameter = diameter
+
+    # 更新斗管管径
+    for i, (first_index, second_index) in enumerate(zip(submain_first_indices, submain_second_indices)):
+        if i >= len(irrigation_system.submains):
+            break
+
+        # 获取连接处干管直径
+        main_connection_diameter = irrigation_system.main_pipe[i + 1]["diameter"]
+
+        # 确保斗管第一段管径不大于干管
+        available_first_diameters = [d for d in pipe_specs["submain"]["diameters"] if
+                                     d <= main_connection_diameter]
+
+        if not available_first_diameters:
+            continue
+
+        # 规范化索引
+        normalized_first_index = min(int(first_index), len(available_first_diameters) - 1)
+        first_diameter = available_first_diameters[normalized_first_index]
+
+        # 确保斗管第二段管径不大于第一段
+        available_second_diameters = [d for d in pipe_specs["submain"]["diameters"] if d <= first_diameter]
+
+        if not available_second_diameters:
+            continue
+
+        # 规范化索引
+        normalized_second_index = min(int(second_index), len(available_second_diameters) - 1)
+        second_diameter = available_second_diameters[normalized_second_index]
+
+        # 更新斗管管径
+        irrigation_system.submains[i]["diameter_first_half"] = first_diameter
+        irrigation_system.submains[i]["diameter_second_half"] = second_diameter
+
+
+def save_pareto_detailed_results(algorithm_name, pareto_solutions, problem, results_dir='pareto_detailed_results'):
+    """
+    保存帕累托解集的详细管径和压力信息
+
+    参数:
+    algorithm_name: 算法名称
+    pareto_solutions: 帕累托解集
+    problem: 灌溉系统问题实例
+    results_dir: 结果保存目录
+    """
+    # 确保目录存在
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    # 创建输出文件
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"{algorithm_name}_detailed_results_{timestamp}.txt"
+    filepath = os.path.join(results_dir, filename)
+
+    # 获取灌溉系统实例
+    irrigation_system = problem.irrigation_system
+
+    # 确保irrigation_system知道它所属的problem，这样update_pipe_diameters可以访问pipe_specs
+    if not hasattr(irrigation_system, '_problem'):
+        irrigation_system._problem = problem
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(f"=== {algorithm_name} 帕累托解集详细信息 ===\n\n")
+        f.write(f"总解数量: {len(pareto_solutions)}\n\n")
+
+        # 遍历所有解
+        for i, solution in enumerate(pareto_solutions):
+            try:
+                f.write(f"=== 解 {i + 1} ===\n")
+
+                # 获取目标值 (确保使用best_fitness属性如果存在)
+                fitness = getattr(solution, 'best_fitness', getattr(solution, 'fitness', None))
+                f.write(f"目标值: 成本 = {fitness[0]:.2f}, 水头均方差 = {fitness[1]:.2f}\n\n")
+
+                # 获取解的决策变量 (确保使用best_position属性如果存在)
+                position = getattr(solution, 'best_position', getattr(solution, 'position', None))
+                if position is None:
+                    position = solution['x'] if isinstance(solution, dict) and 'x' in solution else solution
+
+                # 更新管网配置
+                update_pipe_diameters(irrigation_system, position)
+
+                # 输出斗管管径配置
+                f.write("斗管分段管径配置:\n")
+                f.write("节点编号    第一段管径    第二段管径\n")
+                f.write("           (mm)         (mm)\n")
+                f.write("-" * 45 + "\n")
+
+                for j in range(irrigation_system.node_count):
+                    submain = irrigation_system.submains[j]
+                    f.write(
+                        f"{j + 1:4d}         {submain['diameter_first_half']:4d}         {submain['diameter_second_half']:4d}\n")
+
+                f.write("-" * 45 + "\n\n")
+
+                # 对每个轮灌组输出信息
+                for group_idx, nodes in enumerate(irrigation_system.irrigation_groups):
+                    f.write(f"轮灌组 {group_idx + 1}:\n")
+                    f.write(f"启用节点: {nodes}\n\n")
+
+                    # 更新水力计算
+                    irrigation_system._update_flow_rates(nodes)
+                    irrigation_system._calculate_hydraulics()
+                    irrigation_system._calculate_pressures()
+
+                    # 输出管段水力参数
+                    f.write("管段水力参数表:\n")
+                    f.write("编号    管径    段前水头压力\n")
+                    f.write("       (mm)        (m)\n")
+                    f.write("-" * 30 + "\n")
+
+                    for j in range(irrigation_system.node_count + 1):
+                        segment = irrigation_system.main_pipe[j]
+                        f.write(f"{j:2d}    {segment['diameter']:4d}    {segment['pressure']:6.2f}\n")
+
+                    f.write("-" * 30 + "\n\n")
+
+                f.write("=" * 60 + "\n\n")
+            except Exception as e:
+                f.write(f"处理解 {i + 1} 时出错: {str(e)}\n")
+                f.write("=" * 60 + "\n\n")
+                print(f"处理解 {i + 1} 时出错: {str(e)}")
+
+    print(f"{algorithm_name}的帕累托解集详细信息已保存到: {filepath}")
+    return filepath
+
+
 # ====================== 主函数 ======================
 
 def main():
@@ -2983,29 +3154,29 @@ def main():
     # 定义算法参数（添加MOEAD和SPEA2的参数）
     algorithm_params = {
         "MOPSO": {  # 使用新的动态参数接口
-            "pop_size": 200,
-            "max_iterations": 200,
+            "pop_size": 50,
+            "max_iterations": 100,
             "w_init": 0.9, "w_end": 0.4,  # 动态惯性权重
             "c1_init": 1.5, "c1_end": 1.5,  # (等效于 c1=1.5)
             "c2_init": 1.5, "c2_end": 1.5,  # (等效于 c2=1.5)
             "use_archive": True,
-            "archive_size": 150  # 标准存档大小
+            "archive_size": 100  # 标准存档大小
         },
         "NSGAII": {
-            "pop_size": 200,
-            "max_generations": 200
+            "pop_size": 50,
+            "max_generations": 100
         },
         "MOEAD": {
-            "pop_size": 300,
-            "max_generations": 200,
+            "pop_size": 50,
+            "max_generations": 100,
             "T": 15,
             "delta": 0.8,
             "nr": 10
         },
         "SPEA2": {
-            "pop_size": 100,
+            "pop_size": 50,
             "archive_size": 100,
-            "max_generations": 200
+            "max_generations": 100
         }
     }
 
